@@ -3069,14 +3069,35 @@
             box-shadow: 0 18px 44px rgba(0,0,0,0.3);
             text-align: center;
         }
-        #mood-check .mood-step {
-            font-size: 0.78rem;
-            color: var(--ink-soft);
+        /* 화면이 툭툭 갈리지 않게 한 번 부드럽게 들어옵니다 */
+        #mood-check .mood-body.in { animation: moodIn 0.22s ease-out; }
+        @keyframes moodIn {
+            from { opacity: 0; transform: translateY(6px); }
+            to   { opacity: 1; transform: translateY(0); }
+        }
+        #mood-check .mood-hero {
+            font-size: 2.6rem;
+            line-height: 1;
             margin-bottom: 10px;
         }
+        /* 몇 번째 질문인지 — 숫자보다 점이 덜 부담스럽습니다 */
+        #mood-check .mood-pips {
+            display: flex;
+            justify-content: center;
+            gap: 6px;
+            margin-bottom: 16px;
+        }
+        #mood-check .mood-pip {
+            width: 7px; height: 7px;
+            border-radius: 50%;
+            background: var(--line);
+            display: block;
+        }
+        #mood-check .mood-pip.on  { background: var(--tangerine); }
+        #mood-check .mood-pip.now { background: var(--tangerine); transform: scale(1.4); }
         #mood-check h4 {
-            margin: 0 0 18px;
-            font-size: 1.1rem;
+            margin: 0 0 6px;
+            font-size: 1.12rem;
             line-height: 1.5;
             color: var(--ink);
         }
@@ -3086,20 +3107,57 @@
             line-height: 1.6;
             color: var(--ink-soft);
         }
+        /* '요즘' 이 언제인지 — 기준이 없으면 사람마다 다르게 읽습니다 */
+        #mood-check .mood-sub {
+            font-size: 0.78rem;
+            margin-bottom: 16px;
+        }
         #mood-check .mood-opt {
-            display: block;
+            display: flex;
+            align-items: center;
+            gap: 12px;
             width: 100%;
-            min-height: 48px;
-            margin-bottom: 10px;
+            min-height: 58px;
+            margin-bottom: 9px;
+            padding: 10px 14px;
             border: 2px solid var(--line);
-            border-radius: 14px;
+            border-radius: 16px;
             background: #fff;
             color: var(--ink);
-            font-size: 0.95rem;
+            font-family: inherit;
+            text-align: left;
+            cursor: pointer;
+            transition: border-color 0.15s ease, background 0.15s ease;
+        }
+        #mood-check .mood-opt:hover { border-color: var(--tangerine); }
+        #mood-check .mood-opt:active { background: var(--cream); transform: scale(0.985); }
+        #mood-check .mo-emo { font-size: 1.5rem; line-height: 1; flex-shrink: 0; }
+        #mood-check .mo-text { display: flex; flex-direction: column; gap: 2px; min-width: 0; }
+        #mood-check .mo-text b { font-size: 0.95rem; font-weight: 700; }
+        #mood-check .mo-text small { font-size: 0.76rem; color: var(--ink-soft); }
+        #mood-check .mood-back {
+            width: 100%;
+            min-height: 40px;
+            margin-top: 4px;
+            border: none;
+            background: none;
+            color: var(--ink-soft);
+            font-size: 0.82rem;
             font-family: inherit;
             cursor: pointer;
         }
-        #mood-check .mood-opt:active { background: var(--cream); transform: scale(0.985); }
+        /* 검사가 아니라는 걸 결과 화면에 적어 둡니다 */
+        #mood-check .mood-note {
+            margin-top: 10px;
+            font-size: 0.75rem;   /* 12px 아래로는 안 내려갑니다 */
+            line-height: 1.5;
+            color: var(--ink-soft);
+            opacity: 0.85;
+        }
+        @media (prefers-reduced-motion: reduce) {
+            #mood-check .mood-body.in { animation: none; }
+            #mood-check .mood-pip.now { transform: none; }
+        }
         #mood-check .mood-ok {
             width: 100%;
             min-height: 48px;
