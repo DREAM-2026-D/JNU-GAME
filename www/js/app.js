@@ -126,6 +126,119 @@
         if (splash) splash.classList.add('hide');
     }
 
+    // ===================================================================
+    // 오늘의 마음 묻기 (신호등 자동 선택)
+    //
+    // 예전엔 들어오자마자 빨강·주황·초록을 직접 고르게 했습니다. 그런데
+    // "지금 내가 위험한가?" 를 스스로 판단해서 누르는 건 생각보다 어려운 일이에요.
+    // 특히 힘든 사람일수록 "이 정도로 빨강을 누르면 유난인가" 하고 망설입니다.
+    //
+    // 그래서 짧게 세 가지만 묻고 신호를 대신 맞춰 줍니다. 세 문항은 잠·기분·
+    // 버거움으로, 흔히 쓰는 간이 선별 문항의 뼈대만 빌렸습니다.
+    //
+    // ★ 이건 진단이 아닙니다. 고른 신호는 언제든 본인이 바꿀 수 있고,
+    //   건너뛰어도 됩니다. 결과 화면에서도 "직접 고르기" 를 항상 열어 둡니다.
+    //   문항과 문구는 학생상담센터 검토를 받아야 합니다.
+    // ===================================================================
+    const MOOD_KEY = "jeroki-mood";
+    const MOOD_QUESTIONS = [
+        { q: "요즘 잠은 어때요?",
+          a: [["잘 자요", 0], ["뒤척여요", 1], ["거의 못 자요", 2]] },
+        { q: "요즘 기분은 어떤 편이에요?",
+          a: [["괜찮아요", 0], ["가라앉아 있어요", 1], ["많이 힘들어요", 2]] },
+        { q: "하루를 보내는 게 버겁나요?",
+          a: [["할 만해요", 0], ["가끔 벅차요", 1], ["거의 매일 벅차요", 2]] }
+    ];
+
+    function moodToSignal(score) {
+        if (score >= 5) return "red";
+        if (score >= 2) return "orange";
+        return "green";
+    }
+
+    async function askedMoodToday() {
+        try {
+            const raw = await window.storage.get(MOOD_KEY);
+            if (!raw) return false;
+            return JSON.parse(raw).date === todayKey();
+        } catch (e) { return false; }
+    }
+
+    function closeMoodCheck() {
+        const ov = document.getElementById('mood-check');
+        if (ov) ov.classList.remove('show');
+    }
+    window.closeMoodCheck = closeMoodCheck;
+
+    // 묻지 않고 바로 직접 고르게 둡니다 (건너뛰기)
+    async function skipMoodCheck() {
+        closeMoodCheck();
+        try { await window.storage.set(MOOD_KEY, JSON.stringify({ date: todayKey(), skipped: true })); } catch (e) {}
+    }
+    window.skipMoodCheck = skipMoodCheck;
+
+    let moodAnswers = [];
+
+    function renderMoodStep() {
+        const ov = document.getElementById('mood-check');
+        if (!ov) return;
+        const i = moodAnswers.length;
+
+        if (i >= MOOD_QUESTIONS.length) {
+            const score = moodAnswers.reduce((a, b) => a + b, 0);
+            const sig = moodToSignal(score);
+            const words = {
+                red:    ["많이 지쳐 있는 것 같아요", "혼자 버티지 않아도 돼요. 아래에 바로 연락할 곳을 띄워 둘게요."],
+                orange: ["조금 힘든 날인 것 같아요", "천천히 가도 괜찮아요. 쉬어갈 거리를 아래에 둘게요."],
+                green:  ["오늘은 괜찮아 보여요", "이런 날도 소중해요. 편하게 둘러보세요."]
+            }[sig];
+            ov.querySelector('.mood-body').innerHTML =
+                '<div class="mood-result-dot ' + sig + '"></div>' +
+                '<h4>' + words[0] + '</h4>' +
+                '<p>' + words[1] + '</p>' +
+                '<button type="button" class="mood-ok" onclick="applyMood(\'' + sig + '\')">알겠어요</button>' +
+                '<button type="button" class="mood-skip" onclick="skipMoodCheck()">직접 고를게요</button>';
+            return;
+        }
+
+        const Q = MOOD_QUESTIONS[i];
+        ov.querySelector('.mood-body').innerHTML =
+            '<div class="mood-step">' + (i + 1) + ' / ' + MOOD_QUESTIONS.length + '</div>' +
+            '<h4>' + Q.q + '</h4>' +
+            Q.a.map((opt, n) =>
+                '<button type="button" class="mood-opt" onclick="answerMood(' + opt[1] + ')">' + opt[0] + '</button>'
+            ).join('') +
+            '<button type="button" class="mood-skip" onclick="skipMoodCheck()">건너뛰기</button>';
+    }
+
+    window.answerMood = function (v) { moodAnswers.push(v); renderMoodStep(); };
+
+    window.applyMood = async function (sig) {
+        closeMoodCheck();
+        selectSignal(sig);
+        try {
+            await window.storage.set(MOOD_KEY, JSON.stringify({ date: todayKey(), signal: sig }));
+        } catch (e) {}
+        // 고른 자리로 데려가서, 바꾸고 싶으면 바로 바꿀 수 있게 합니다
+        const panel = document.getElementById('signal-panel-' + sig);
+        if (panel) panel.scrollIntoView({ block: 'center', behavior: 'smooth' });
+    };
+
+    async function showMoodCheck() {
+        if (await askedMoodToday()) return;
+        moodAnswers = [];
+        let ov = document.getElementById('mood-check');
+        if (!ov) {
+            ov = document.createElement('div');
+            ov.id = 'mood-check';
+            ov.innerHTML = '<div class="mood-card"><div class="mood-body"></div></div>';
+            document.body.appendChild(ov);
+        }
+        renderMoodStep();
+        ov.classList.add('show');
+    }
+    window.showMoodCheck = showMoodCheck;
+
     function selectSignal(color) {
         const labels = {
             red: '🔴 지금 위험해요',
@@ -1795,6 +1908,9 @@
         document.getElementById('game-view').style.display = 'flex';
         window.scrollTo(0, 0);
         gameStarted = true;
+        // 게임에 처음 들어오는 사람에게 보살피기 설명을 한 번 띄웁니다.
+        // (여기는 switchTab 을 거치지 않고 바로 열리는 자리라 따로 부릅니다)
+        try { showGameTip('care'); } catch (e) {}
         updateResourceBar();
         renderFarm();
         renderShop();
@@ -3618,6 +3734,9 @@
         }
         if (name === "care") greetOnCareTab();   // 돌아오면 반갑게 다가와요
 
+        // 그 게임을 처음 여는 사람에게만 짧게 설명합니다
+        try { showGameTip(name); } catch (e) {}
+
         // 3D 병아리는 보살피기 탭에서만 그립니다.
         // 다른 탭에서도 계속 그리면 배터리만 쓰고 보이지도 않아요.
         if (window.chick3d && window.chick3d.available()) {
@@ -4831,6 +4950,9 @@
         await saveUserState();
         renderHeaderUser();
         renderDailyMissions();
+        // 오늘 아직 안 물었으면 마음 상태를 짧게 묻고 신호등을 맞춰 줍니다.
+        // 출석 축하 토스트와 겹치지 않게 조금 늦춰서 띄웁니다.
+        setTimeout(function () { try { showMoodCheck(); } catch (e) {} }, firstToday ? 1600 : 500);
         if (firstToday) {
             const streak = attendanceStreak();
             showEventToast(
@@ -7001,6 +7123,176 @@
     // ===================================================================
     // 시작
     // ===================================================================
+    // ===================================================================
+    // 게임 설명 (처음 들어갈 때 한 번)
+    //
+    // 어떤 게임이든 처음 열면 뭘 눌러야 할지 모르겠다는 얘기가 있었습니다.
+    // 화면을 살짝 덮고 "여기선 이걸 하면 돼요" 만 짚어주고 넘어갑니다.
+    //
+    // 한 번 본 설명은 다시 안 띄웁니다. 매번 뜨면 그게 더 성가셔요.
+    // 다시 보고 싶으면 각 게임의 ? 버튼으로 열 수 있습니다.
+    // ===================================================================
+    const TIP_KEY = "jeroki-tips";
+    const GAME_TIPS = {
+        care: { icon: "🐣", title: "보살피기",
+            lines: ["밥 주고 · 쓰다듬고 · 재워주면 아래 막대가 올라가요.",
+                    "쓰다듬기는 버튼을 누르는 게 아니라, 병아리 몸 위를 손가락으로 끌어주세요.",
+                    "무엇을 많이 해줬는지에 따라 다른 새로 자랍니다."] },
+        farm: { icon: "🌾", title: "농장",
+            lines: ["밭에 들어가 씨앗을 심고, 다 자라면 거두세요.",
+                    "거둔 작물은 상점에서 밥으로 바꿉니다.",
+                    "코인을 모으면 새 농장도 열 수 있어요."] },
+        fish: { icon: "🎣", title: "낚시",
+            lines: ["던지고 기다리다가, 찌가 움직이면 당기세요.",
+                    "표시된 구간 안에서 당겨야 성공이에요.",
+                    "연속으로 성공하면 콤보가 쌓이고 귀한 게 잡힙니다."] },
+        mine: { icon: "⛏️", title: "광산",
+            lines: ["갈림길 중 하나를 골라 들어가세요.",
+                    "길마다 나오는 광물과 위험이 달라요.",
+                    "곡괭이를 올리면 더 깊은 곳까지 갈 수 있습니다."] },
+        walk: { icon: "🚶", title: "산책",
+            lines: ["병아리와 걷다 보면 재료나 코인을 줍습니다.",
+                    "오늘 고른 마음 신호등이 여기 날씨로 나타나요.",
+                    "아무것도 안 주워도 괜찮아요. 걷는 게 목적이니까요."] },
+        play: { icon: "🎈", title: "놀이",
+            lines: ["칸에서 튀어나오는 병아리를 누르세요.",
+                    "활력을 쓰지만 애정도가 오릅니다."] },
+        shop: { icon: "🏪", title: "상점",
+            lines: ["모은 코인으로 씨앗·밥·장비를 삽니다.",
+                    "장비를 올리면 성능도 좋아지고 모양도 바뀌어요.",
+                    "맨 아래에서 코인을 섬 복원용 온기로 바꿀 수 있습니다."] },
+        island: { icon: "🏝️", title: "제록이 섬",
+            lines: ["왼쪽 아래 동그란 스틱에 엄지를 얹고 밀면 걸어갑니다.",
+                    "가까이 가면 뜨는 안내를 보고 오른쪽 아래 확인을 누르세요.",
+                    "주민과 이야기할 때는 화면 아무 데나 누르면 다음 줄로 넘어가요."] }
+    };
+
+    let seenTips = null;
+    async function loadTips() {
+        if (seenTips) return seenTips;
+        try {
+            const raw = await window.storage.get(TIP_KEY);
+            seenTips = raw ? JSON.parse(raw) : {};
+        } catch (e) { seenTips = {}; }
+        return seenTips;
+    }
+
+    function closeGameTip() {
+        const ov = document.getElementById('game-tip');
+        if (ov) ov.classList.remove('show');
+    }
+    window.closeGameTip = closeGameTip;
+
+    // force=true 면 이미 본 설명도 다시 띄웁니다 (? 버튼)
+    async function showGameTip(key, force) {
+        const tip = GAME_TIPS[key];
+        if (!tip) return;
+        const seen = await loadTips();
+        if (!force && seen[key]) return;
+
+        let ov = document.getElementById('game-tip');
+        if (!ov) {
+            ov = document.createElement('div');
+            ov.id = 'game-tip';
+            document.body.appendChild(ov);
+        }
+        ov.innerHTML =
+            '<div class="tip-card">' +
+                '<div class="tip-icon">' + tip.icon + '</div>' +
+                '<h4>' + tip.title + '</h4>' +
+                '<ul>' + tip.lines.map(l => '<li>' + l + '</li>').join('') + '</ul>' +
+                '<button type="button" class="tip-ok" onclick="closeGameTip()">알겠어요</button>' +
+            '</div>';
+        ov.classList.add('show');
+        // 바깥을 눌러도 닫힙니다. 안내는 막는 게 아니라 보여주는 것이니까요.
+        ov.onclick = function (e) { if (e.target === ov) closeGameTip(); };
+
+        seen[key] = true;
+        try { await window.storage.set(TIP_KEY, JSON.stringify(seen)); } catch (e) {}
+    }
+    window.showGameTip = showGameTip;
+
+    // ===================================================================
+    // 카드 접어두기
+    //
+    // 메인 화면에 카드가 일곱 장이라 "요소가 너무 많다"는 얘기가 있었습니다.
+    // 무엇이 덜 중요한지는 사람마다 다르니, 제가 골라서 치우는 대신
+    // 제목을 눌러 각자 접게 했습니다. 접은 건 다음에 와도 그대로입니다.
+    //
+    // 처음 오는 사람에게는 '오두막 기록 벽'과 '함께 가는 친구'를 접어 둡니다.
+    // 둘 다 한참 키운 뒤에야 볼 게 생기는 자리라, 시작하는 날엔 비어 있어요.
+    // ===================================================================
+    const FOLD_KEY = "jeroki-folds";
+    const FOLD_DEFAULT_CLOSED = ["card-wall", "card-companion"];
+
+    function cardKey(card) {
+        const m = (card.className || "").match(/card-([a-z]+)/);
+        return m ? m[0] : null;
+    }
+
+    async function loadFolds() {
+        try {
+            const raw = await window.storage.get(FOLD_KEY);
+            if (raw) return JSON.parse(raw);
+        } catch (e) {}
+        return null;
+    }
+
+    async function saveFolds(folds) {
+        try { await window.storage.set(FOLD_KEY, JSON.stringify(folds)); } catch (e) {}
+    }
+
+    async function setupFolds() {
+        const saved = await loadFolds();
+        const folds = saved || {};
+        document.querySelectorAll('#main-view .card').forEach(card => {
+            const h3 = card.querySelector(':scope > h3, :scope > .mission-head > h3');
+            if (!h3) return;
+            // 마음 신호등 패널은 신호에 따라 저절로 바뀌는 자리라 접지 않습니다
+            if (card.classList.contains('signal-panel')) return;
+            const key = cardKey(card);
+            if (!key) return;
+
+            // 제목 줄을 누를 수 있는 머리로 바꿉니다.
+            // 이미 머리가 있는 카드(미션·기록벽)는 그 줄을 그대로 씁니다.
+            let head = h3.closest('.mission-head');
+            if (head) {
+                head.classList.add('fold-head');
+                const right = document.createElement('span');
+                right.className = 'fold-right';
+                while (head.children.length > 1) right.appendChild(head.children[1]);
+                head.appendChild(right);
+                right.insertAdjacentHTML('beforeend', '<span class="fold-arrow">▾</span>');
+            } else {
+                head = document.createElement('div');
+                head.className = 'fold-head';
+                h3.parentNode.insertBefore(head, h3);
+                head.appendChild(h3);
+                head.insertAdjacentHTML('beforeend',
+                    '<span class="fold-right"><span class="fold-arrow">▾</span></span>');
+            }
+
+            card.classList.add('foldable');
+            const closed = saved ? !!folds[key] : FOLD_DEFAULT_CLOSED.indexOf(key) >= 0;
+            card.classList.toggle('folded', closed);
+
+            head.setAttribute('role', 'button');
+            head.setAttribute('tabindex', '0');
+            head.setAttribute('aria-expanded', String(!closed));
+            function toggle() {
+                const nowFolded = !card.classList.contains('folded');
+                card.classList.toggle('folded', nowFolded);
+                head.setAttribute('aria-expanded', String(!nowFolded));
+                folds[key] = nowFolded;
+                saveFolds(folds);
+            }
+            head.addEventListener('click', toggle);
+            head.addEventListener('keydown', e => {
+                if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); toggle(); }
+            });
+        });
+    }
+
     (async function bootDaily() {
         await loadUserState();
         if (!needsOnboarding()) {
@@ -7009,6 +7301,7 @@
         }
         // 날짜가 넘어갔거나 알림이 소진됐을 수 있으니 열 때마다 다시 채워둡니다
         syncReminders();
+        try { await setupFolds(); } catch (e) {}
     })();
 
     // 스플래시를 닫은 뒤 온보딩 여부를 판단

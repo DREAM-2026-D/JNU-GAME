@@ -3058,12 +3058,21 @@
 
         var f = (keys.up ? 1 : 0) - (keys.down ? 1 : 0);
         var s = (keys.right ? 1 : 0) - (keys.left ? 1 : 0);
+        // 스틱을 밀고 있으면 그쪽이 우선입니다. 민 거리가 곧 걷는 속도예요.
+        var stickLen = Math.hypot(stick.x, stick.y);
+        var push = 1;
+        if (stickLen > STICK_DEAD) {
+            f = -stick.y;          // 화면 위로 밀면 앞으로
+            s = stick.x;
+            // 죽은 구간을 뺀 나머지를 0~1 로 다시 펴서, 살짝 밀면 살살 걷게
+            push = Math.min(1, (stickLen - STICK_DEAD) / (1 - STICK_DEAD));
+        }
         if (f || s) {
             var len = Math.hypot(f, s); f /= len; s /= len;
             var fx = -Math.sin(yaw), fz = -Math.cos(yaw);
             var rx = Math.cos(yaw),  rz = -Math.sin(yaw);
-            var nx = pos.x + (fx * f + rx * s) * CFG.speed * dt;
-            var nz = pos.z + (fz * f + rz * s) * CFG.speed * dt;
+            var nx = pos.x + (fx * f + rx * s) * CFG.speed * push * dt;
+            var nz = pos.z + (fz * f + rz * s) * CFG.speed * push * dt;
             var lim = area === "hub" ? 13.0 : 7.6;
             if (Math.hypot(nx, nz) < lim) { pos.x = nx; pos.z = nz; }
         }
@@ -3365,7 +3374,8 @@
 
         // 걸을 때 살짝 흔들리고, 챌 때 위로 튕깁니다
         rodKick = Math.max(0, rodKick - dt * 3.2);
-        var walking = (keys.up || keys.down || keys.left || keys.right) ? 1 : 0;
+        var walking = (keys.up || keys.down || keys.left || keys.right ||
+                       Math.hypot(stick.x, stick.y) > STICK_DEAD) ? 1 : 0;
         var sway = Math.sin(elapsed * 6) * 0.02 * walking;
         var shake = (fishStage === "bite") ? Math.sin(elapsed * 26) * 0.035 : 0;
         rodView.position.set(0.34, -0.30 + sway, -0.42);
@@ -4070,6 +4080,66 @@
         btn.addEventListener("mouseleave", off);
     }
 
+    // 둥근 스틱. 엄지를 얹고 민 방향·거리를 그대로 읽습니다.
+    //
+    // 화살표 버튼은 "눌렀다 뗐다"를 반복해야 해서 손가락이 바빴어요.
+    // 스틱은 한 번 얹으면 손을 떼기 전까지 이어지고, 살짝 밀면 천천히
+    // 많이 밀면 빠르게 걷습니다. 비스듬히 가는 것도 됩니다.
+    var stick = { x: 0, y: 0, on: false, id: null };
+    var STICK_DEAD = 0.14;        // 이만큼 안 밀면 안 움직입니다 (손떨림 방지)
+
+    function bindStick(el, knob) {
+        var R = 46;               // 스틱이 움직일 수 있는 반지름
+
+        function setFrom(cx, cy) {
+            var r = el.getBoundingClientRect();
+            var dx = cx - (r.left + r.width / 2);
+            var dy = cy - (r.top + r.height / 2);
+            var len = Math.hypot(dx, dy);
+            if (len > R) { dx = dx / len * R; dy = dy / len * R; len = R; }
+            stick.x = dx / R;
+            stick.y = dy / R;
+            knob.style.transform = "translate(" + dx + "px," + dy + "px)";
+        }
+        function reset() {
+            stick.on = false; stick.id = null; stick.x = 0; stick.y = 0;
+            knob.style.transform = "translate(0,0)";
+        }
+
+        el.addEventListener("touchstart", function (e) {
+            e.preventDefault();
+            var t = e.changedTouches[0];
+            stick.on = true; stick.id = t.identifier;
+            setFrom(t.clientX, t.clientY);
+        }, { passive: false });
+
+        el.addEventListener("touchmove", function (e) {
+            if (!stick.on) return;
+            e.preventDefault();
+            for (var i = 0; i < e.changedTouches.length; i++) {
+                var t = e.changedTouches[i];
+                if (t.identifier === stick.id) { setFrom(t.clientX, t.clientY); return; }
+            }
+        }, { passive: false });
+
+        ["touchend", "touchcancel"].forEach(function (ev) {
+            el.addEventListener(ev, function (e) {
+                for (var i = 0; i < e.changedTouches.length; i++) {
+                    if (e.changedTouches[i].identifier === stick.id) { reset(); return; }
+                }
+            });
+        });
+
+        // 컴퓨터에서 확인할 때를 위한 마우스 조작
+        el.addEventListener("mousedown", function (e) {
+            e.preventDefault(); stick.on = true; setFrom(e.clientX, e.clientY);
+        });
+        window.addEventListener("mousemove", function (e) {
+            if (stick.on && stick.id === null) setFrom(e.clientX, e.clientY);
+        });
+        window.addEventListener("mouseup", function () { if (stick.id === null) reset(); });
+    }
+
     // =================================================================
     // 저장
     // =================================================================
@@ -4344,6 +4414,9 @@
         document.getElementById("main-view").style.display = "none";
         elRoot.classList.add("show");
 
+        // 섬은 조작이 제일 낯선 곳이라, 처음 오는 사람에게 한 번 짚어줍니다
+        try { if (window.showGameTip) window.showGameTip("island"); } catch (e) {}
+
         // [배포 점검 1] WebGL 이 안 되면 여기서 막지 않고 2D 로 갑니다.
         // 예전에는 alert 만 띄우고 섬 자체를 못 들어갔어요.
         if (!webglAvailable()) {
@@ -4493,12 +4566,12 @@
                     '</div>' +
                 '</div>' +
                 '<div id="i3-panel"></div>' +
-                '<div id="i3-pad">' +
-                    '<button type="button" data-dir="up">▲</button>' +
-                    '<div><button type="button" data-dir="left">◀</button>' +
-                    '<button type="button" data-dir="right">▶</button></div>' +
-                    '<button type="button" data-dir="down">▼</button>' +
-                '</div>' +
+                // 화살표 네 개를 번갈아 누르는 것보다, 엄지를 얹고 밀면
+                // 되는 쪽이 훨씬 편하다는 얘기가 있었습니다. 닌텐도 패드처럼
+                // 둥근 스틱으로 바꿉니다. 민 거리만큼 천천히/빠르게 걸어요.
+                '<div id="i3-stick" aria-label="움직이기"><div id="i3-knob"></div></div>' +
+                '<div id="i3-rotate"><b>📱</b>휴대폰을 가로로 돌려주세요' +
+                    '<span>섬은 가로로 봐야 넓게 둘러볼 수 있어요</span></div>' +
                 '<button type="button" id="i3-act">확인</button>' +
             '</div>';
         document.body.appendChild(elRoot);
@@ -4545,9 +4618,17 @@
             if (busy && elDlg.classList.contains("show")) nextLine(); else interact();
         };
         elDlg.onclick = nextLine;
-        elRoot.querySelectorAll("#i3-pad button").forEach(function (b) {
-            bindPad(b, b.getAttribute("data-dir"));
+
+        // 대화 중에는 화면 아무 데나 눌러도 다음 줄로 넘어갑니다.
+        //
+        // 예전엔 [다음 ▶] 버튼을 정확히 눌러야 해서, 말이 길어지면
+        // 그 작은 버튼만 계속 조준해야 했습니다. 불편하다는 얘기가 있었어요.
+        // 스틱·확인 버튼처럼 원래 할 일이 있는 자리는 빼고 받습니다.
+        elCanvas.addEventListener("pointerdown", function () {
+            if (busy && elDlg.classList.contains("show")) nextLine();
         });
+
+        bindStick(elRoot.querySelector("#i3-stick"), elRoot.querySelector("#i3-knob"));
     }
 
     window.showIsland = showIsland;
