@@ -3167,51 +3167,52 @@
         { k: "home",       emoji: "🏠", name: "내 오두막" }
     ];
 
+    // 현황판은 "지금 섬이 어디까지 왔나" 를 한눈에 보는 자리입니다.
+    //
+    // 예전엔 여섯 쪽짜리 글을 [다음] 으로 넘겨가며 읽어야 했어요. 현황·온기·
+    // 다음 목표·꾸미기·주민·인사가 각각 한 쪽씩이었습니다. 읽을 건 많은데
+    // 정작 "그래서 지금 뭐가 어떻게 됐는데?" 가 한눈에 안 들어왔습니다.
+    //
+    // 한 장으로 줄이고, 다섯 곳의 단계를 작은 점으로 나란히 보여줍니다.
+    // 글로 설명하던 건 숫자와 점이 대신하게 두고, 말은 한 줄만 남겼습니다.
     function readBoard() {
         var w = W();
         var warmth = w ? w.warmth : 0;
         var done = 0, total = 0;
-        var lines = [];
 
-        var status = BOARD_ZONES.map(function (z) {
+        var rows = BOARD_ZONES.map(function (z) {
             var lv = zoneLv(z.k);
             done += (lv - 1); total += 2;
-            var bar = ["●", "●", "●"].map(function (_, i) { return i < lv ? "●" : "○"; }).join("");
-            return z.emoji + " " + z.name + "  " + bar + " " + lv + "/3";
-        }).join("\n");
+            var dots = [0, 1, 2].map(function (i) {
+                return '<i class="bd-dot' + (i < lv ? ' on' : '') + '"></i>';
+            }).join("");
+            return '<div class="bd-row' + (lv >= 3 ? ' full' : '') + '">' +
+                       '<span class="bd-emo">' + z.emoji + '</span>' +
+                       '<span class="bd-name">' + z.name + '</span>' +
+                       '<span class="bd-dots">' + dots + '</span>' +
+                   '</div>';
+        }).join("");
 
-        lines.push("📋 제록이 섬 현황판\n\n" + status);
-        lines.push("🔥 지금 모은 온기: " + warmth + "\n\n" +
-                   "복원 진행: " + done + " / " + total + " 단계\n" +
-                   (done === total ? "섬이 다 되살아났어요! 🎉"
-                                   : "포털 화면의 '제록이 섬 복원'에서\n온기를 들일 수 있어요."));
-
-        // 아직 못 되살린 곳 중 제일 싼 곳을 다음 목표로 짚어줍니다
-        var next = null;
-        BOARD_ZONES.forEach(function (z) {
-            if (zoneLv(z.k) >= 3) return;
-            if (!next) next = z;
-        });
-        if (next) {
-            lines.push("👉 다음에 손볼 만한 곳\n\n" + next.emoji + " " + next.name +
-                       " (지금 " + zoneLv(next.k) + "단계)\n\n" +
-                       "밭일·낚시·꽃 나누기로 온기가 쌓여요.");
-        }
-
-        // 복원과 꾸미기는 다른 일입니다.
-        // 복원은 온기로 되살리는 것, 꾸미기는 코인으로 내 마음대로 두는 것.
+        var pct = total ? Math.round(done / total * 100) : 0;
         var dPlaced = placedDecorCount(), dTotal = decorSpotTotal();
-        lines.push("🌷 섬 꾸미기\n\n" +
-                   "꾸민 자리: " + dPlaced + " / " + dTotal + "\n" +
-                   (heldDecorCount() ? "가진 조경물 " + heldDecorCount() + "개를\n빈 자리에 놓아보세요."
-                    : dPlaced >= dTotal ? "빈 자리를 다 채웠어요! 🎉"
-                    : "하르방 상점의 조경 가판에서\n살 수 있어요."));
 
-        lines.push("🍊 감귤 농장 — 감귤이\n🎣 바다 낚시터 — 제록이\n" +
-                   "🌺 동백 꽃밭 — 동백이\n🏪 하르방 상점 — 하르방");
-        lines.push("아무것도 안 하고\n걷다 가셔도 괜찮아요.");
+        // 한 줄 안내. 지금 상황에서 제일 쓸모 있는 말만 고릅니다.
+        var tell;
+        if (done === total) tell = "섬이 다 되살아났어요 🎉";
+        else if (heldDecorCount()) tell = "가진 조경물을 빈 자리에 놓아보세요.";
+        else tell = "포털 화면 '제록이 섬 복원'에서 온기를 들일 수 있어요.";
 
-        openDialog("섬 현황판", "", lines);
+        showPanel("📋 섬 현황판",
+            '<div class="bd-top">' +
+                '<div class="bd-stat"><b>' + warmth + '</b><span>🔥 온기</span></div>' +
+                '<div class="bd-stat"><b>' + done + '/' + total + '</b><span>복원</span></div>' +
+                '<div class="bd-stat"><b>' + dPlaced + '/' + dTotal + '</b><span>🌷 꾸밈</span></div>' +
+            '</div>' +
+            '<div class="bd-bar"><span style="width:' + pct + '%"></span></div>' +
+            '<div class="bd-list">' + rows + '</div>' +
+            '<div class="bd-tell">' + tell + '</div>' +
+            '<button type="button" id="i3-close">닫기</button>');
+        elPanel.querySelector("#i3-close").onclick = closePanel;
     }
 
     // ---- 도구 효과 ------------------------------------------------------

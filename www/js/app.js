@@ -999,28 +999,55 @@
             const st = zoneStage(key);
             const cost = zoneNextCost(key);
             const done = cost === null;
-            html += '<div class="restore-row' + (done ? " done" : "") + '">' +
-                '<div class="rs-ico">' + z.emoji + '</div>' +
-                '<div class="rs-body">' +
-                    '<div class="rs-name">' + z.name +
-                        '<span class="rs-stage">' + st + ' / 3</span></div>' +
-                    '<div class="rs-tell">' + z.tell[st - 1] + '</div>' +
-                    '<div class="rs-bar"><span style="width:' + Math.round((st - 1) / 2 * 100) + '%"></span></div>' +
-                    // 값을 치르기 전에 무엇이 생기는지 보여줍니다
-                    (done ? ''
-                          : '<div class="rs-next">🔨 다음에 생겨요 · ' +
-                            ((RESTORE_NEXT[key] || [])[st - 1] || '') + '</div>') +
+            // 한 줄에 다 보이게 접어 둡니다.
+            //
+            // 예전엔 칸마다 설명 문장과 "다음에 생겨요 · 나무 데크, 고쳐진 배,
+            // 창고, 배 매는 말뚝" 같은 긴 목록이 통째로 박혀 있었습니다.
+            // 다섯 칸이 900px 가까이 되니 섬이 지저분해 보일 수밖에 없었어요.
+            // 이름·단계·값만 한 줄로 두고, 자세한 건 눌렀을 때만 폅니다.
+            const dots = [0, 1, 2].map(i =>
+                '<i class="rs-dot' + (i < st ? ' on' : '') + '"></i>').join('');
+            html += '<div class="restore-row' + (done ? " done" : "") + '" data-zone="' + key + '">' +
+                '<div class="rs-head" onclick="toggleRestoreRow(\'' + key + '\')">' +
+                    '<span class="rs-ico">' + z.emoji + '</span>' +
+                    '<span class="rs-name">' + z.name + '</span>' +
+                    '<span class="rs-dots">' + dots + '</span>' +
+                    (done
+                        ? '<span class="rs-done">완료</span>'
+                        : '<span class="rs-cost' + (worldState.warmth < cost ? ' short' : '') + '">🔥' + cost + '</span>') +
                 '</div>' +
-                (done
-                    ? '<span class="rs-done">완료</span>'
-                    : '<button class="rs-btn" ' + (worldState.warmth < cost ? "disabled" : "") +
-                      ' onclick="restoreZone(\'' + key + '\')">🔥 ' + cost + '</button>') +
+                '<div class="rs-more">' +
+                    '<div class="rs-tell">' + z.tell[st - 1] + '</div>' +
+                    (done ? ''
+                          : '<div class="rs-next">🔨 다음에 생겨요<br>' +
+                            ((RESTORE_NEXT[key] || [])[st - 1] || '') + '</div>' +
+                            '<button class="rs-btn" ' + (worldState.warmth < cost ? "disabled" : "") +
+                            ' onclick="restoreZone(\'' + key + '\')">🔥 ' + cost + ' 들여서 되살리기</button>') +
+                '</div>' +
                 '</div>';
         });
         wrap.innerHTML = html;
         const sum = document.getElementById("restore-sum");
         if (sum) sum.innerText = restoredCount() + " / 10 단계";
+        // 펼쳐 둔 칸이 있으면 다시 그린 뒤에도 그대로 둡니다
+        if (openRestoreRow) {
+            const row = wrap.querySelector('[data-zone="' + openRestoreRow + '"]');
+            if (row) row.classList.add('open');
+        }
     }
+
+    // 한 번에 한 칸만 폅니다. 여러 개가 동시에 열리면 다시 길어져요.
+    let openRestoreRow = null;
+    window.toggleRestoreRow = function (key) {
+        const wrap = document.getElementById("restore-list");
+        if (!wrap) return;
+        const row = wrap.querySelector('[data-zone="' + key + '"]');
+        if (!row) return;
+        const wasOpen = row.classList.contains('open');
+        wrap.querySelectorAll('.restore-row.open').forEach(r => r.classList.remove('open'));
+        if (!wasOpen) { row.classList.add('open'); openRestoreRow = key; }
+        else openRestoreRow = null;
+    };
 
     // --- 동반자 -------------------------------------------------------
     // 진화를 마친 병아리를 버리지 않고 섬에 데려갈 친구로 남깁니다.
