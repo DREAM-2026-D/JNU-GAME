@@ -7428,7 +7428,7 @@
     // 초기화로 온보딩부터 다시 시작할 수 있게 해뒀습니다.
     // 버그 제보를 받을 때 어느 빌드인지 알 수 있도록 버전도 같이 띄웁니다.
     // ===================================================================
-    const APP_VERSION = "0.50.0";
+    const APP_VERSION = "0.50.1";
 
     function renderBuildInfo() {
         const el = document.getElementById('footer-build');

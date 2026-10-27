@@ -13703,7 +13703,7 @@
     // 초기화로 온보딩부터 다시 시작할 수 있게 해뒀습니다.
     // 버그 제보를 받을 때 어느 빌드인지 알 수 있도록 버전도 같이 띄웁니다.
     // ===================================================================
-    const APP_VERSION = "0.50.0";
+    const APP_VERSION = "0.50.1";
 
     function renderBuildInfo() {
         const el = document.getElementById('footer-build');
@@ -13910,9 +13910,12 @@
 
     var CAMPUS = {
         // ★ 카카오 JavaScript 키. 비워두면 지도 모드만 동작합니다.
-        //   developers.kakao.com > 내 애플리케이션 > 앱 키 > JavaScript 키
-        //   그리고 [플랫폼 > Web] 에 이 앱을 띄우는 도메인을 등록해야 합니다.
-        kakaoAppKey: "51eb3250539dbe782f2b2c53f6977aec",
+        //   developers.kakao.com > JNU_GAME 앱 (ID 1544237) > 플랫폼 키 > JavaScript 키
+        //   그 키의 [JS SDK 도메인] 에 이 앱을 띄우는 도메인을 등록해야 합니다.
+        //   2026-10-27: 배포 주소가 jmin-22-d.github.io 로 바뀌어, 그 도메인이 등록된
+        //   이 계정 앱의 키로 바꿨습니다. (예전 키 51eb3250… 는 다른 앱 것이라
+        //   새 주소에서 401 로 막혔습니다. 로컬에서 시험하려면 localhost 도 등록하세요.)
+        kakaoAppKey: "4619836e29156b1dc538cdae75e71148",
 
         // 제주대학교 아라캠퍼스 대략 중심.
         // 화면에 현재 좌표가 계속 표시되니, 원하는 자리까지 걸어가서
