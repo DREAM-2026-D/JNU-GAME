@@ -5396,3 +5396,96 @@
             align-items: center;
             justify-content: center;
         }
+
+        /* ===== 아래 탭 바 (2026-10) =====
+           전북 ON 앱의 떠 있는 탭과 같은 모양. 앱 폭(최대 480px)에 맞춰 가운데 둡니다.
+           모달(도감·미션 500, 전화 900, 설문 11300)보다 아래, 화면 내용보다 위. */
+        .tabbar {
+            position: fixed;
+            left: 50%;
+            bottom: calc(10px + env(safe-area-inset-bottom, 0px));
+            transform: translateX(-50%);
+            width: calc(min(100vw, 480px) - 24px);
+            z-index: 400;
+            display: none;
+            grid-template-columns: repeat(5, 1fr);
+            padding: 6px;
+            background: rgba(255, 255, 255, 0.94);
+            backdrop-filter: blur(14px);
+            -webkit-backdrop-filter: blur(14px);
+            border: 1px solid var(--line);
+            border-radius: 28px;
+            box-shadow: 0 8px 28px rgba(43, 45, 58, 0.14);
+        }
+        body.tabbar-on .tabbar { display: grid; }
+        .tabbar button {
+            border: 0;
+            background: none;
+            cursor: pointer;
+            display: grid;
+            justify-items: center;
+            gap: 2px;
+            padding: 3px 0 2px;
+            font-size: 11px;
+            font-weight: 700;
+            color: #9a958a;
+            border-radius: 22px;
+            min-height: 52px;
+        }
+        .tabbar .ic {
+            display: grid;
+            place-items: center;
+            width: 48px;
+            height: 30px;
+            border-radius: 999px;
+            transition: background 0.2s ease;
+        }
+        .tabbar svg { width: 23px; height: 23px; }
+        .tabbar button[aria-current="page"] { color: var(--tangerine); }
+        .tabbar button[aria-current="page"] .ic { background: var(--tangerine-soft); }
+        .tabbar button[aria-current="page"] svg { stroke-width: 2.2; }
+        .tabbar button:focus-visible { outline: 2px solid var(--tangerine); outline-offset: 2px; }
+
+        /* 탭 바에 마지막 내용이 가리지 않게 아래를 비워 둡니다 */
+        body.tabbar-on #main-view,
+        body.tabbar-on #game-view { padding-bottom: calc(88px + env(safe-area-inset-bottom, 0px)); }
+
+        /* 홈 / 기록: main-view 한 화면을 나눠 씁니다 */
+        #main-view.page-home [data-page="records"],
+        #main-view.page-records [data-page="home"] { display: none !important; }
+        #main-view.page-records .main-content { flex: 0 0 auto; }
+
+        /* 오늘 섬 날씨 묻기 — 제록이 얼굴과 날씨 결과 */
+        #mood-check .mood-hero-jerok img {
+            width: 72px;
+            height: 72px;
+            border-radius: 50%;
+            object-fit: cover;
+            box-shadow: 0 6px 16px rgba(2, 119, 189, 0.25);
+        }
+        #mood-check .mood-weather {
+            display: inline-flex;
+            align-items: center;
+            gap: 10px;
+            margin-bottom: 14px;
+            padding: 10px 18px 10px 12px;
+            border-radius: 999px;
+            background: var(--calm-green-soft);
+            color: var(--calm-green);
+        }
+        #mood-check .mood-weather.orange { background: var(--police-blue-soft); color: var(--police-blue); }
+        #mood-check .mood-weather.red { background: #f1eff4; color: #5b5866; }
+        #mood-check .mw-emo { font-size: 2rem; line-height: 1; }
+        #mood-check .mw-text { font-size: 0.86rem; font-weight: 500; }
+        #mood-check .mw-text b { font-size: 1rem; margin-left: 2px; }
+
+        /* 대화 화면 위의 안내 한 줄 (예전엔 홈 카드에 있었습니다) */
+        .chat-note {
+            margin: 0 14px;
+            padding: 8px 12px;
+            border-radius: 12px;
+            background: #eef6fd;
+            color: #37637f;
+            font-size: 0.74rem;
+            line-height: 1.5;
+        }

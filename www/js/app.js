@@ -15,6 +15,10 @@
                 try { localStorage.removeItem(key); } catch (e) {}
             }
         };
+        // 휴대폰 브라우저는 저장공간이 모자라면 오래 안 쓴 사이트 기록부터 지웁니다.
+        // 이 사이트 기록은 지우지 말아 달라고 미리 부탁해 둡니다 (안드로이드 크롬은
+        // 자주 오거나 홈 화면에 추가한 사이트에 허락해 줍니다. 거절돼도 저장은 그대로 됩니다).
+        try { if (navigator.storage && navigator.storage.persist) navigator.storage.persist(); } catch (e) {}
     }
 
     // ===================================================================
@@ -166,9 +170,11 @@
 
     async function askedMoodToday() {
         try {
+            // storage.get 은 { value } 를 돌려줍니다. 예전엔 그 객체를 그대로 JSON.parse 해서
+            // 늘 실패했고, 그래서 하루에 몇 번을 들어와도 매번 다시 물었습니다.
             const raw = await window.storage.get(MOOD_KEY);
-            if (!raw) return false;
-            return JSON.parse(raw).date === todayKey();
+            if (!raw || !raw.value) return false;
+            return JSON.parse(raw.value).date === todayKey();
         } catch (e) { return false; }
     }
 
@@ -214,12 +220,16 @@
 
         // --- 인사 ---
         if (!moodIntroShown) {
+            // 설문처럼 보이면 게임에 들어가는 길에 검사지를 받는 느낌이 납니다 (2026-10 피드백).
+            // 그래서 제록이가 '오늘 섬 날씨' 를 같이 정하자고 묻는 모양으로 바꿨습니다.
+            // 고른 신호가 실제로 섬·농장·낚시의 날씨가 되므로 (syncWeatherToSignal) 말이 맞습니다.
+            const logo = document.querySelector('.logo-badge img');
             paintMood(
-                '<div class="mood-hero">🦌</div>' +
-                '<h4>오늘 마음은 어떠신가요?</h4>' +
-                '<p>세 가지만 짧게 여쭤볼게요.<br>' +
-                '맞히려는 게 아니라, 오늘 어떤 화면을 보여드릴지 정하려고요.</p>' +
-                '<button type="button" class="mood-ok" onclick="startMoodQuestions()">시작할게요</button>' +
+                '<div class="mood-hero mood-hero-jerok">' + (logo ? '<img src="' + logo.src + '" alt="제록이">' : '🦌') + '</div>' +
+                '<h4>오늘 섬 날씨를 같이 정해볼까요?</h4>' +
+                '<p>제록이 섬의 하늘은 당신의 마음을 따라가요.<br>' +
+                '세 가지만 물어보고, 오늘 날씨로 섬을 열어 둘게요.</p>' +
+                '<button type="button" class="mood-ok" onclick="startMoodQuestions()">좋아요</button>' +
                 '<button type="button" class="mood-skip" onclick="skipMoodCheck()">그냥 둘러볼게요</button>');
             return;
         }
@@ -232,19 +242,27 @@
             const sig = moodToSignal(score);
             const words = {
                 red: ["많이 지쳐 계시네요",
-                      "이 정도로 버티고 계셨다면, 혼자 감당할 일이 아니에요.<br>바로 연락할 곳을 아래에 띄워 둘게요."],
+                      "이 정도로 버티고 계셨다면, 혼자 감당할 일이 아니에요.<br>바로 연락할 곳을 띄워 둘게요."],
                 orange: ["조금 힘든 때인 것 같아요",
-                      "천천히 가도 괜찮아요.<br>쉬어갈 거리를 아래에 두었어요."],
+                      "천천히 가도 괜찮아요.<br>오늘은 병아리랑 쉬엄쉬엄 지내요."],
                 green: ["오늘은 괜찮아 보여요",
-                      "이렇게 지나가는 날도 소중해요.<br>편하게 둘러보세요."]
+                      "이렇게 지나가는 날도 소중해요.<br>섬에서 편하게 놀다 가요."]
             }[sig];
+            const w = weatherTypes[SIGNAL_WEATHER[sig]] || weatherTypes.clear;
+            // 힘든 날(빨강)에는 연락처가 먼저입니다. 병아리로 가는 길은 그 아래에 남겨 둡니다.
+            // 그 밖의 날에는 결과에서 곧장 병아리에게 갑니다 — 묻는 것이 게임으로 이어지게.
+            const buttons = sig === 'red'
+                ? '<button type="button" class="mood-ok" onclick="applyMood(\'red\')">도움받을 곳 볼게요</button>' +
+                  '<button type="button" class="mood-skip" onclick="applyMood(\'red\', \'game\')">지금은 병아리 보러 갈래요</button>'
+                : '<button type="button" class="mood-ok" onclick="applyMood(\'' + sig + '\', \'game\')">🐣 병아리 만나러 가기</button>' +
+                  '<button type="button" class="mood-skip" onclick="applyMood(\'' + sig + '\')">홈에서 둘러볼게요</button>';
             paintMood(
-                '<div class="mood-result-dot ' + sig + '"></div>' +
+                '<div class="mood-weather ' + sig + '"><span class="mw-emo">' + w.emoji + '</span>' +
+                    '<span class="mw-text">오늘 섬 날씨 <b>' + w.label + '</b></span></div>' +
                 '<h4>' + words[0] + '</h4>' +
                 '<p>' + words[1] + '</p>' +
-                '<button type="button" class="mood-ok" onclick="applyMood(\'' + sig + '\')">알겠어요</button>' +
-                '<button type="button" class="mood-skip" onclick="skipMoodCheck()">제가 직접 고를게요</button>' +
-                '<div class="mood-note">이건 검사가 아니에요. 신호는 언제든 바꿀 수 있어요.</div>');
+                buttons +
+                '<div class="mood-note">이건 검사가 아니에요. 홈의 신호등에서 언제든 바꿀 수 있어요.</div>');
             return;
         }
 
@@ -269,13 +287,15 @@
     // 잘못 눌렀을 때 되돌아갈 길이 없으면 답답합니다
     window.backMood = function () { moodAnswers.pop(); renderMoodStep(); };
 
-    window.applyMood = async function (sig) {
+    window.applyMood = async function (sig, then) {
         closeMoodCheck();
         selectSignal(sig);
         try {
             await window.storage.set(MOOD_KEY, JSON.stringify({ date: todayKey(), signal: sig }));
         } catch (e) {}
+        if (then === 'game') { goTab('game'); return; }
         // 고른 자리로 데려가서, 바꾸고 싶으면 바로 바꿀 수 있게 합니다
+        goTab('home');
         const panel = document.getElementById('signal-panel-' + sig);
         if (panel) panel.scrollIntoView({ block: 'center', behavior: 'smooth' });
     };
@@ -2024,6 +2044,72 @@
         window.scrollTo(0, 0);
         stopIdleAegyo();
     }
+
+    // ===================================================================
+    // 아래 탭 바 (홈 · 병아리 · 섬 · 제록이 · 기록)
+    //
+    // 2026-10 피드백: 홈이 길어서 섬·대화까지 한참 내려가야 했습니다.
+    // 전북 ON 앱처럼 아래에 늘 떠 있는 탭으로 바꿨습니다.
+    // 홈과 기록은 main-view 한 화면을 나눠 쓰고 (data-page), 병아리는 game-view,
+    // 섬·제록이는 원래 있던 전체 화면을 엽니다. 자기 '뒤로' 버튼이 있는 전체 화면
+    // (섬·대화·약)에서는 탭 바가 숨습니다.
+    // ===================================================================
+    let mainPage = 'home';
+
+    function setMainPage(page) {
+        mainPage = page === 'records' ? 'records' : 'home';
+        const mv = document.getElementById('main-view');
+        mv.classList.toggle('page-home', mainPage === 'home');
+        mv.classList.toggle('page-records', mainPage === 'records');
+    }
+
+    function goTab(tab) {
+        if (tab === 'game') {
+            showGame();
+        } else if (tab === 'chat') {
+            showChat();
+        } else if (tab === 'island') {
+            // 병아리 화면에서 바로 섬에 가면, 섬을 닫을 때 홈과 병아리가 겹쳐 보입니다
+            showMain();
+            if (window.showIsland) window.showIsland();
+        } else {
+            setMainPage(tab);
+            showMain();
+        }
+        syncTabbar();
+    }
+    window.goTab = goTab;
+
+    function syncTabbar() {
+        const bar = document.getElementById('tabbar');
+        if (!bar) return;
+        const shown = id => {
+            const el = document.getElementById(id);
+            return !!el && getComputedStyle(el).display !== 'none';
+        };
+        const splash = document.getElementById('splash-view');
+        const splashUp = splash && !splash.classList.contains('hide');
+        let cur = null;
+        if (shown('game-view')) cur = 'game';
+        else if (shown('main-view')) cur = mainPage;
+        const on = !!cur && !splashUp;
+        document.body.classList.toggle('tabbar-on', on);
+        bar.querySelectorAll('button').forEach(b => {
+            if (b.dataset.tab === cur) b.setAttribute('aria-current', 'page');
+            else b.removeAttribute('aria-current');
+        });
+    }
+
+    // 화면을 바꾸는 함수가 여기저기 흩어져 있어서 (섬 닫기, 대화 닫기, 안드로이드 뒤로가기…)
+    // 하나하나 고치는 대신, 화면이 보이고 숨는 것 자체를 지켜보다가 탭 바를 맞춥니다.
+    document.addEventListener('DOMContentLoaded', function () {
+        const mo = new MutationObserver(syncTabbar);
+        ['main-view', 'game-view', 'chat-view', 'medication-view', 'splash-view'].forEach(id => {
+            const el = document.getElementById(id);
+            if (el) mo.observe(el, { attributes: true, attributeFilter: ['style', 'class'] });
+        });
+        syncTabbar();
+    });
 
     function spawnFloatText(btnEl, text) {
         const el = document.createElement("span");
@@ -4972,58 +5058,20 @@
         return streak;
     }
 
-    // ----- 온보딩 -----
-    // [P0] 게스트로 바로 시작.
-    // 학번·이름 없이도 게임 전부를 할 수 있고, 기록도 이 기기에 남습니다.
-    // 나중에 등록하면 그때까지의 진행이 그대로 이어집니다.
+    // ----- 처음 시작 -----
+    // 학번·이름 입력 화면은 없앴습니다 (2026-10 피드백: 그냥 들어가게 해 달라).
+    // 학번은 원래 어디에도 쓰이지 않았고, 모든 기록은 처음부터 이 기기에만 저장됩니다.
+    // 처음 온 사람은 이름 없는 프로필로 바로 시작합니다. 예전에 학번으로 등록한
+    // 사람은 저장된 이름 그대로 인사합니다.
     async function startAsGuest() {
         userProfile = { guest: true, name: "", studentId: "", joinedAt: new Date().toISOString() };
         await saveUserState();
-        document.getElementById('onboarding-view').classList.remove('show');
         startDailySession();
-        setTimeout(function () {
-            try { showEventToast("🐣 바로 시작했어요! 학번은 나중에 등록해도 괜찮아요", "neutral"); } catch (e) {}
-        }, 900);
     }
 
     function isGuest() { return !!(userProfile && userProfile.guest); }
 
-    function needsOnboarding() {
-        if (userProfile && userProfile.guest) return false;   // 게스트도 통과
-        return !userProfile || !userProfile.studentId || !userProfile.name;
-    }
-
-    function showOnboarding() {
-        const avatar = document.getElementById('onb-avatar');
-        const logoImg = document.querySelector('.logo-badge img');
-        if (avatar && logoImg && !avatar.querySelector('img')) {
-            const clone = document.createElement('img');
-            clone.src = logoImg.src;
-            clone.alt = "제록이";
-            avatar.appendChild(clone);
-        }
-        document.getElementById('onboarding-view').classList.add('show');
-    }
-
-    async function submitOnboarding() {
-        const idEl = document.getElementById('onb-student-id');
-        const nameEl = document.getElementById('onb-name');
-        const errEl = document.getElementById('onb-error');
-        const studentId = idEl.value.trim();
-        const name = nameEl.value.trim();
-
-        if (!studentId) { errEl.innerText = "학번을 입력해주세요."; idEl.focus(); return; }
-        if (!/^\d{4,12}$/.test(studentId)) { errEl.innerText = "학번은 숫자로만 입력해주세요."; idEl.focus(); return; }
-        if (!name) { errEl.innerText = "이름을 입력해주세요."; nameEl.focus(); return; }
-        errEl.innerText = "";
-
-        // 게스트로 놀다가 등록하는 경우, 가입 시각은 처음 시작한 때로 둡니다
-        const joinedAt = (userProfile && userProfile.joinedAt) || new Date().toISOString();
-        userProfile = { studentId, name, joinedAt, guest: false };
-        await saveUserState();
-        document.getElementById('onboarding-view').classList.remove('show');
-        startDailySession();
-    }
+    function needsOnboarding() { return !userProfile; }
 
     // ----- 출석 -----
     async function startDailySession() {
@@ -5042,7 +5090,7 @@
             showEventToast(
                 streak > 1
                     ? "🎉 " + streak + "일 연속 출석! 오늘도 와줘서 고마워요"
-                    : "🌱 오늘도 만나서 반가워요, " + userProfile.name + "님",
+                    : "🌱 오늘도 만나서 반가워요" + (userProfile.name ? ", " + userProfile.name + "님" : "!"),
                 "good"
             );
         }
@@ -5053,43 +5101,11 @@
         const box = document.getElementById('header-user');
         // 게스트는 이름이 없으므로 부르는 말을 바꿉니다
         document.getElementById('header-hello').innerText =
-            isGuest() ? "안녕하세요" : (userProfile.name + "님");
+            userProfile.name ? (userProfile.name + "님") : "안녕하세요";
         const streak = attendanceStreak();
         const badge = document.getElementById('header-streak');
         badge.innerText = streak > 0 ? "출석 " + streak + "일" : "출석 시작";
         box.style.display = 'block';
-        renderGuestRow();
-    }
-
-    // [P0] 게스트에게만 보이는 등록 안내.
-    // 강요하지 않고, 왜 필요한지(출석·미션 기록)만 적어 둡니다.
-    function renderGuestRow() {
-        const row = document.getElementById('guest-row');
-        if (!row) return;
-        if (!isGuest()) { row.innerHTML = ""; row.style.display = "none"; return; }
-        row.style.display = "block";
-        row.innerHTML =
-            '<div class="guest-note">' +
-                '<div class="gn-text">지금은 <b>바로 시작</b>으로 즐기는 중이에요.<br>' +
-                '학번을 등록하면 출석과 미션 기록이 함께 쌓여요.</div>' +
-                '<button type="button" class="gn-btn" onclick="openRegister()">학번 등록</button>' +
-            '</div>';
-    }
-
-    // 게스트가 나중에 등록할 때 온보딩 화면을 다시 띄웁니다.
-    // 지금까지의 병아리·코인·섬은 그대로 이어집니다.
-    function openRegister() {
-        const v = document.getElementById('onboarding-view');
-        if (!v) return;
-        const err = document.getElementById('onb-error');
-        if (err) err.innerText = "";
-        const guestBtn = v.querySelector('.onb-guest-btn');
-        const or = v.querySelector('.onb-or');
-        if (guestBtn) guestBtn.style.display = "none";     // 이미 시작했으므로 감춥니다
-        if (or) or.style.display = "none";
-        const sub = v.querySelector('.onb-sub');
-        if (sub) sub.innerHTML = "지금까지 키운 병아리와 섬은 그대로 이어져요.<br>학번과 이름만 알려주세요.";
-        v.classList.add('show');
     }
 
     // ----- 오늘의 미션 렌더링 -----
@@ -7257,7 +7273,7 @@
         if (seenTips) return seenTips;
         try {
             const raw = await window.storage.get(TIP_KEY);
-            seenTips = raw ? JSON.parse(raw) : {};
+            seenTips = (raw && raw.value) ? JSON.parse(raw.value) : {};   // get 은 { value } 를 돌려줍니다
         } catch (e) { seenTips = {}; }
         return seenTips;
     }
@@ -7318,7 +7334,7 @@
     async function loadFolds() {
         try {
             const raw = await window.storage.get(FOLD_KEY);
-            if (raw) return JSON.parse(raw);
+            if (raw && raw.value) return JSON.parse(raw.value);
         } catch (e) {}
         return null;
     }
@@ -7396,7 +7412,7 @@
         setTimeout(async () => {
             await loadUserState();
             if (needsOnboarding()) {
-                showOnboarding();
+                startAsGuest();
             } else {
                 startDailySession();
                 checkPendingCall();
@@ -7412,7 +7428,7 @@
     // 초기화로 온보딩부터 다시 시작할 수 있게 해뒀습니다.
     // 버그 제보를 받을 때 어느 빌드인지 알 수 있도록 버전도 같이 띄웁니다.
     // ===================================================================
-    const APP_VERSION = "0.49.0";
+    const APP_VERSION = "0.50.0";
 
     function renderBuildInfo() {
         const el = document.getElementById('footer-build');
